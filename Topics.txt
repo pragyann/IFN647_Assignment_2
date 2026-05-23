@@ -3,7 +3,7 @@
 <num> Number: R101
 <title> Economic espionage
 
-<desc> Description:<Topic>
+<desc> Description:
 What is being done to counter economic espionage internationally?
 
 <narr> Narrative:

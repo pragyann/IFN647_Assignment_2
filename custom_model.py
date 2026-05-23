@@ -35,8 +35,8 @@ def build_weighted_query(Ti: Topic, stop_words):
 
     # Title terms are the most important, followed by description and narrative terms
     add_weighted_terms(TitleTerms, 1.0)
-    add_weighted_terms(DescTerms, 0.5)
-    add_weighted_terms(NarrTerms, 0.25)
+    add_weighted_terms(DescTerms, 0.05)
+    add_weighted_terms(NarrTerms, 0.025)
 
     return Q
 
@@ -163,6 +163,8 @@ def w5_feedback_weights(T, Qm, term_df, r, N, R):
 
         # Combine Rocchio-modified query evidence and feedback evidence
         rocchio_weight = max(0, Qm.get(t, 0))
+
+        print(rocchio_weight, feedback_weight)
         W5[t] = max(0, (LAMBDA_MODEL * rocchio_weight) + ((1 - LAMBDA_MODEL) * feedback_weight))
 
     return W5

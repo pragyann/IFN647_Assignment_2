@@ -72,10 +72,6 @@ def bm25(coll: BowColl, Qi, term_df):
             # f_t = number of times term t occurs in document D
             f_t = D.get_term_count(t)
 
-            # If term t does not occur in D, the document term-frequency component is 0
-            if f_t == 0:
-                continue
-
             # dl = length of document D and K is the BM25 length-normalization value
             dl = D.get_doc_len()
             K = K1 * ((1 - B) + B * (dl / avdl))

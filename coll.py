@@ -196,3 +196,15 @@ def parseQuery(query, stop_words):
 
     return term_freq
 
+def load_stop_words():
+    """
+    Function that loads stop words from a comma-separated stop words file.\n
+    Parameters: `path` - path of stop words file to load\n
+    Return value: list of stop words
+    """
+
+    stop_words_file = open("common-english-words.txt", "r")
+    stop_words = stop_words_file.read().split(",")
+    stop_words_file.close()
+
+    return stop_words

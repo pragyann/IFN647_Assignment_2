@@ -85,11 +85,11 @@ def rocchio_query_update(Q, D_plus, D_minus, alpha, beta, gamma):
 
         for D in D_plus:
             if D.get_doc_len() > 0:
-                relWeight = relWeight + (D.get_term_count(t) / D.get_doc_len())
+                relWeight = relWeight + D.get_term_count(t)
 
         for D in D_minus:
             if D.get_doc_len() > 0:
-                nonrelWeight = nonrelWeight + (D.get_term_count(t) / D.get_doc_len())
+                nonrelWeight = nonrelWeight + D.get_term_count(t)
 
         relMean = relWeight / R if R > 0 else 0
         nonrelMean = nonrelWeight / NR if NR > 0 else 0

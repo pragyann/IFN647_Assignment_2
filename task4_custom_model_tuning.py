@@ -173,7 +173,6 @@ def grid_search_modelC():
 
     return best_map_result, best_p10_result
 
-
 def main():
     grid_search_modelC()
 

@@ -40,19 +40,21 @@ def build_weighted_query(Ti: Topic, stop_words):
 
     return Q
 
-def select_feedback_docs(RankedList, coll: BowColl):
+def select_feedback_docs(RankedList, coll: BowColl, top_r, bottom_nr):
     """
     Function that selects pseudo-relevant and pseudo non-relevant documents from an initial ranking.\n
     Parameters:
         `RankedList` - initial ranked list of `(DocID, score)` tuples
-        `coll` - collection of documents as `BowColl`\n
+        `coll` - collection of documents as `BowColl`
+        `top_r` - number of pseudo-relevant documents
+        `bottom_nr` - number of pseudo non-relevant documents\n
     Return value: tuple `(D_plus, D_minus)` containing selected document objects
     """
     # D_plus contains the top ranked documents
-    D_plus_ids = [DocID for DocID, _ in RankedList[:TOP_R]]
+    D_plus_ids = [DocID for DocID, _ in RankedList[:top_r]]
 
     # D_minus contains the bottom ranked documents
-    D_minus_ids = [DocID for DocID, _ in RankedList[-BOTTOM_NR:]]
+    D_minus_ids = [DocID for DocID, _ in RankedList[-bottom_nr:]] if bottom_nr > 0 else []
 
     D_plus = [coll.get_doc(DocID) for DocID in D_plus_ids]
     D_minus = [coll.get_doc(DocID) for DocID in D_minus_ids]
@@ -60,13 +62,16 @@ def select_feedback_docs(RankedList, coll: BowColl):
     return D_plus, D_minus
 
 
-def rocchio_query_update(Q, D_plus, D_minus):
+def rocchio_query_update(Q, D_plus, D_minus, alpha, beta, gamma):
     """
     Function that updates query weights using pseudo-relevance feedback.\n
     Parameters:
         `Q` - original weighted topic query `{term: weight}`
         `D_plus` - pseudo-relevant document list
-        `D_minus` - pseudo non-relevant document list\n
+        `D_minus` - pseudo non-relevant document list
+        `alpha` - original query weight
+        `beta` - pseudo-relevant feedback weight
+        `gamma` - pseudo non-relevant feedback weight\n
     Return value: Rocchio-modified query dictionary `{term: weight}`
     """
     Qm = {}
@@ -90,7 +95,7 @@ def rocchio_query_update(Q, D_plus, D_minus):
         nonrelMean = nonrelWeight / NR if NR > 0 else 0
 
         # Rocchio query modification
-        Qm[t] = (ALPHA * Q[t]) + (BETA * relMean) - (GAMMA * nonrelMean)
+        Qm[t] = (alpha * Q[t]) + (beta * relMean) - (gamma * nonrelMean)
 
     return Qm
 
@@ -132,7 +137,7 @@ def candidate_terms(Qm, D_plus):
     return T
 
 
-def w5_feedback_weights(T, Qm, term_df, r, N, R):
+def w5_feedback_weights(T, Qm, term_df, r, N, R, lambda_model):
     """
     Function that computes final feature weights using feedback and modified-query evidence.\n
     Parameters:
@@ -141,7 +146,8 @@ def w5_feedback_weights(T, Qm, term_df, r, N, R):
         `term_df` - document frequency dictionary `{term: n_t}`
         `r` - pseudo-relevant document count dictionary `{term: r_t}`
         `N` - number of documents in the dataset
-        `R` - number of pseudo-relevant documents\n
+        `R` - number of pseudo-relevant documents
+        `lambda_model` - weighting factor for Rocchio evidence\n
     Return value: dictionary `{term: W5_weight}`
     """
     W5 = {}
@@ -161,14 +167,14 @@ def w5_feedback_weights(T, Qm, term_df, r, N, R):
         # Combine Rocchio-modified query evidence and feedback evidence
         rocchio_weight = Qm.get(t, 0)
 
-        W5[t] = (LAMBDA_MODEL * rocchio_weight) + ((1 - LAMBDA_MODEL) * feedback_weight)
+        W5[t] = (lambda_model * rocchio_weight) + ((1 - lambda_model) * feedback_weight)
     return W5
 
 
-def select_features(W5):
+def select_features(W5, theta):
     """
     Function that keeps feature terms whose learned weights are above the selection threshold.\n
-    Parameters: `W5` - final feature weights `{term: weight}`\n
+    Parameters: `W5` - final feature weights `{term: weight}`, `theta` - threshold offset\n
     Return value: selected feature dictionary `{term: weight}`
     """
     Features = {}
@@ -177,7 +183,7 @@ def select_features(W5):
         return Features
 
     meanW5 = sum(W5.values()) / len(W5)
-    threshold = THETA + meanW5
+    threshold = theta + meanW5
 
     for t, weight in W5.items():
         if weight > threshold:
@@ -232,12 +238,29 @@ def save_ranking(RankedList, Ti: Topic, output_dir):
     return outname
 
 
-def modelC(topics_file_path, doc_collection_path):
+def modelC(
+    topics_file_path,
+    doc_collection_path,
+    top_r=TOP_R,
+    bottom_nr=BOTTOM_NR,
+    alpha=ALPHA,
+    beta=BETA,
+    gamma=GAMMA,
+    lambda_model=LAMBDA_MODEL,
+    theta=THETA,
+):
     """
     Function that runs Model_C ranking over all topics and datasets.\n
     Parameters:
         `topics_file_path` - path of `Topics.txt`
-        `doc_collection_path` - path of folder containing Dataset101 to Dataset150\n
+        `doc_collection_path` - path of folder containing Dataset101 to Dataset150
+        `top_r` - number of pseudo-relevant documents
+        `bottom_nr` - number of pseudo non-relevant documents
+        `alpha` - original query weight
+        `beta` - pseudo-relevant feedback weight
+        `gamma` - pseudo non-relevant feedback weight
+        `lambda_model` - weighting factor for Rocchio evidence
+        `theta` - feature selection threshold offset\n
     Return value: dictionary `{topic_id: ranked_list}`
     """
     output_dir = "ModelOutputs"
@@ -270,17 +293,17 @@ def modelC(topics_file_path, doc_collection_path):
         InitialRankedList = rank_documents(InitialScore)
 
         # Select pseudo-relevant and pseudo non-relevant documents
-        D_plus, D_minus = select_feedback_docs(InitialRankedList, dataset)
+        D_plus, D_minus = select_feedback_docs(InitialRankedList, dataset, top_r, bottom_nr)
         R = len(D_plus)
 
         # Update the query using Rocchio pseudo-relevance feedback
-        Qm = rocchio_query_update(Q, D_plus, D_minus)
+        Qm = rocchio_query_update(Q, D_plus, D_minus, alpha, beta, gamma)
 
         # Compute feedback counts and final feature weights
         r = pseudo_relevance_counts(D_plus)
         T = candidate_terms(Qm, D_plus)
-        W5 = w5_feedback_weights(T, Qm, term_df, r, N, R)
-        Features = select_features(W5)
+        W5 = w5_feedback_weights(T, Qm, term_df, r, N, R, lambda_model)
+        Features = select_features(W5, theta)
 
         # Final ranking based on selected features and learned weights
         Score = feature_score(dataset, Features)

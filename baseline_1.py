@@ -4,7 +4,11 @@ from math import log10
 from coll import BowColl, parse_documents, parseQuery, load_stop_words
 from topics import Topic, load_topics
 
+K1 = 1.2
+K2 = 500
+B = 0.75
 def df(coll: BowColl):
+
     """
     Function that takes a document collection and returns document frequency of each term in the collection.\n
     Parameters: `coll` - collection of documents as `BowColl`\n
@@ -46,10 +50,6 @@ def bm25(coll: BowColl, Qi, term_df):
     """
     Score = {}
     N = coll.get_num_docs()
-
-    K1 = 1.2
-    K2 = 500
-    B = 0.75
 
     avdl = avg_doc_len(coll)
 

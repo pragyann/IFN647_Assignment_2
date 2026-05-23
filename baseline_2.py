@@ -9,7 +9,6 @@ from topics import Topic, load_topics
 
 LAMBDA = 0.3
 
-
 def index_docs(inputpath, stop_words):
     """
     Function that builds an inverted index directly from XML files in a dataset folder.\n

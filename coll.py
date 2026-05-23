@@ -208,3 +208,11 @@ def load_stop_words():
     stop_words_file.close()
 
     return stop_words
+
+def rank_documents(Score):
+    """
+    Function that sorts documents by score in descending order.\n
+    Parameters: `Score` - dictionary of document scores `{DocID: score}`\n
+    Return value: ranked list of `(DocID, score)` tuples
+    """
+    return sorted(Score.items(), key=lambda x: x[1], reverse=True)

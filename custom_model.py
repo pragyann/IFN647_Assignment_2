@@ -1,0 +1,308 @@
+import os
+from math import log10
+
+from baseline_1 import bm25, df
+from coll import BowColl, parseQuery, parse_documents, load_stop_words, rank_documents
+from topics import Topic, load_topics
+
+
+TOP_R = 10
+BOTTOM_NR = 20
+ALPHA = 8
+BETA = 16
+GAMMA = 4
+LAMBDA_MODEL = 0.7
+THETA = 3.5
+
+
+def build_weighted_query(Ti: Topic, stop_words):
+    """
+    Function that builds a weighted topic query from title, description, and narrative fields.\n
+    Parameters: `Ti` - topic object, `stop_words` - list of stop words to exclude during parsing\n
+    Return value: weighted query dictionary `{term: weight}`
+    """
+    # Adds terms from one topic field to Q using that field's weight
+    def add_weighted_terms(parsed_terms, weight):
+        for term, freq in parsed_terms.items():
+            Q[term] = Q.get(term, 0) + (weight * freq)
+
+    Q = {}
+
+    # Parse each topic field separately before applying field weights
+    TitleTerms = parseQuery(Ti.title, stop_words)
+    DescTerms = parseQuery(Ti.description, stop_words)
+    NarrTerms = parseQuery(Ti.narrative, stop_words)
+
+    # Title terms are the most important, followed by description and narrative terms
+    add_weighted_terms(TitleTerms, 1.0)
+    add_weighted_terms(DescTerms, 0.5)
+    add_weighted_terms(NarrTerms, 0.25)
+
+    return Q
+
+def select_feedback_docs(RankedList, coll: BowColl):
+    """
+    Function that selects pseudo-relevant and pseudo non-relevant documents from an initial ranking.\n
+    Parameters:
+        `RankedList` - initial ranked list of `(DocID, score)` tuples
+        `coll` - collection of documents as `BowColl`\n
+    Return value: tuple `(D_plus, D_minus)` containing selected document objects
+    """
+    # D_plus contains the top ranked documents
+    D_plus_ids = [DocID for DocID, score in RankedList[:TOP_R]]
+
+    # D_minus contains the bottom ranked documents
+    D_minus_ids = [DocID for DocID, score in RankedList[-BOTTOM_NR:]]
+
+    D_plus = [coll.get_doc(DocID) for DocID in D_plus_ids]
+    D_minus = [coll.get_doc(DocID) for DocID in D_minus_ids]
+
+    return D_plus, D_minus
+
+
+def rocchio_query_update(Q, D_plus, D_minus):
+    """
+    Function that updates query weights using pseudo-relevance feedback.\n
+    Parameters:
+        `Q` - original weighted topic query `{term: weight}`
+        `D_plus` - pseudo-relevant document list
+        `D_minus` - pseudo non-relevant document list\n
+    Return value: Rocchio-modified query dictionary `{term: weight}`
+    """
+    Qm = {}
+    R = len(D_plus)
+    NR = len(D_minus)
+
+    for t in Q:
+        # Average evidence for term t in pseudo-relevant and pseudo non-relevant documents
+        relWeight = 0
+        nonrelWeight = 0
+
+        for D in D_plus:
+            if D.get_doc_len() > 0:
+                relWeight = relWeight + (D.get_term_count(t) / D.get_doc_len())
+
+        for D in D_minus:
+            if D.get_doc_len() > 0:
+                nonrelWeight = nonrelWeight + (D.get_term_count(t) / D.get_doc_len())
+
+        relMean = relWeight / R if R > 0 else 0
+        nonrelMean = nonrelWeight / NR if NR > 0 else 0
+
+        # Rocchio query modification
+        Qm[t] = (ALPHA * Q[t]) + (BETA * relMean) - (GAMMA * nonrelMean)
+
+    return Qm
+
+
+def pseudo_relevance_counts(D_plus):
+    """
+    Function that counts how many pseudo-relevant documents contain each term.\n
+    Parameters: `D_plus` - pseudo-relevant document list\n
+    Return value: dictionary `{term: r_t}`
+    """
+    r = {}
+
+    for D in D_plus:
+        for t in D.terms:
+            r[t] = r.get(t, 0) + 1
+
+    return r
+
+
+def candidate_terms(Qm, D_plus):
+    """
+    Function that builds candidate feature terms from the modified query and pseudo-relevant documents.\n
+    Parameters:
+        `Qm` - Rocchio-modified query dictionary `{term: weight}`
+        `D_plus` - pseudo-relevant document list\n
+    Return value: set of candidate terms
+    """
+    T = set()
+
+    # Add terms from the modified query
+    for t in Qm:
+        T.add(t)
+
+    # Add terms from pseudo-relevant documents
+    for D in D_plus:
+        for t in D.terms:
+            T.add(t)
+
+    return T
+
+
+def w5_feedback_weights(T, Qm, term_df, r, N, R):
+    """
+    Function that computes final feature weights using feedback and modified-query evidence.\n
+    Parameters:
+        `T` - candidate feature terms
+        `Qm` - Rocchio-modified query dictionary `{term: weight}`
+        `term_df` - document frequency dictionary `{term: n_t}`
+        `r` - pseudo-relevant document count dictionary `{term: r_t}`
+        `N` - number of documents in the dataset
+        `R` - number of pseudo-relevant documents\n
+    Return value: dictionary `{term: W5_weight}`
+    """
+    W5 = {}
+
+    for t in T:
+        # r_t = number of pseudo-relevant documents containing term t
+        r_t = r.get(t, 0)
+
+        # n_t = number of documents in Dataset_i containing term t
+        n_t = term_df.get(t, 0)
+
+        # Relevance-feedback evidence for term t
+        numerator = (r_t + 0.5) / (R - r_t + 0.5)
+        denominator = (n_t - r_t + 0.5) / (N - n_t - R + r_t + 0.5)
+        feedback_weight = log10(numerator / denominator)
+
+        # Negative feedback weights are clipped so selected features contribute positively
+        feedback_weight = max(0, feedback_weight)
+
+        # Combine Rocchio-modified query evidence and feedback evidence
+        rocchio_weight = max(0, Qm.get(t, 0))
+        W5[t] = max(0, (LAMBDA_MODEL * rocchio_weight) + ((1 - LAMBDA_MODEL) * feedback_weight))
+
+    return W5
+
+
+def select_features(W5):
+    """
+    Function that keeps feature terms whose learned weights are above the selection threshold.\n
+    Parameters: `W5` - final feature weights `{term: weight}`\n
+    Return value: selected feature dictionary `{term: weight}`
+    """
+    Features = {}
+
+    if len(W5) == 0:
+        return Features
+
+    meanW5 = sum(W5.values()) / len(W5)
+    threshold = THETA + meanW5
+
+    for t, weight in W5.items():
+        if weight > threshold:
+            Features[t] = weight
+
+    return Features
+
+
+def feature_score(coll: BowColl, Features):
+    """
+    Function that scores documents using selected binary features and learned feature weights.\n
+    Parameters:
+        `coll` - collection of documents as `BowColl`
+        `Features` - selected feature dictionary `{term: weight}`\n
+    Return value: dictionary of final Model_C scores `{DocID: score}`
+    """
+    Score = {}
+
+    for DocID, D in coll.get_docs().items():
+        Score[DocID] = 0.0
+
+        for t, weight in Features.items():
+            # I(t, D) = 1 if term t occurs in document D, otherwise 0
+            if D.get_term_count(t) > 0:
+                Score[DocID] = Score[DocID] + weight
+
+    return Score
+
+
+def save_ranking(RankedList, Ti: Topic, output_dir):
+    """
+    Function that saves the ranked list for one topic to a `.dat` output file.\n
+    Parameters:
+        `RankedList` - ranked list of `(DocID, ModelC_score)` tuples
+        `Ti` - topic object used for ranking
+        `output_dir` - output folder for model ranking files\n
+    Return value: path of saved ranking file
+    """
+    Ri = Ti.topic_id
+    outname = os.path.join(output_dir, f"ModelC_{Ri}_Ranking.dat")
+
+    output_file = open(outname, "w")
+    output_file.write(f"Query is the topic title = \"{Ti.title}\"\n\n")
+    output_file.write("Doc_ID ModelC_Score\n")
+
+    # Write each document ID and its final score using the required two-column format
+    for DocID, score in RankedList:
+        output_file.write(f"{DocID} {score}\n")
+
+    output_file.close()
+
+    return outname
+
+
+def modelC(topics_file_path, doc_collection_path):
+    """
+    Function that runs Model_C ranking over all topics and datasets.\n
+    Parameters:
+        `topics_file_path` - path of `Topics.txt`
+        `doc_collection_path` - path of folder containing Dataset101 to Dataset150\n
+    Return value: dictionary `{topic_id: ranked_list}`
+    """
+    output_dir = "ModelOutputs"
+    os.makedirs(output_dir, exist_ok=True)
+
+    # Read all topics and stop words before looping through datasets
+    Topics = load_topics(topics_file_path)
+    stop_words = load_stop_words()
+    all_rankings = {}
+
+    for Ti in Topics:
+        # Ri is the topic number, e.g. R101
+        Ri = Ti.topic_id
+
+        # Q is built from title, description, and narrative fields
+        Q = build_weighted_query(Ti, stop_words)
+
+        # Dataset101 corresponds to topic R101, Dataset102 to R102, and so on
+        dataset_directory = os.path.join(doc_collection_path, f"Dataset{Ri[1:]}")
+
+        # ParseDocuments returns Dataset_i as a BowColl of BowDoc objects
+        dataset = parse_documents(dataset_directory, stop_words)
+        N = dataset.get_num_docs()
+
+        # Get document frequency n_t for every term in Dataset_i
+        term_df = df(dataset)
+
+        # First-pass BM25 ranking for pseudo-relevance feedback
+        InitialScore = bm25(dataset, Q, term_df)
+        InitialRankedList = rank_documents(InitialScore)
+
+        # Select pseudo-relevant and pseudo non-relevant documents
+        D_plus, D_minus = select_feedback_docs(InitialRankedList, dataset)
+        R = len(D_plus)
+
+        # Update the query using Rocchio pseudo-relevance feedback
+        Qm = rocchio_query_update(Q, D_plus, D_minus)
+
+        # Compute feedback counts and final feature weights
+        r = pseudo_relevance_counts(D_plus)
+        T = candidate_terms(Qm, D_plus)
+        W5 = w5_feedback_weights(T, Qm, term_df, r, N, R)
+        Features = select_features(W5)
+
+        # Final ranking based on selected features and learned weights
+        Score = feature_score(dataset, Features)
+        RankedList = rank_documents(Score)
+        save_ranking(RankedList, Ti, output_dir)
+        all_rankings[Ri] = RankedList
+
+        # Print top 10 documents for the appendix / checking output
+        print(f"{Ri} (Doc_ID ModelC_Score):")
+        for DocID, score in RankedList[:10]:
+            print(f"{DocID} {score}")
+        print("...")
+
+    return all_rankings
+
+
+def main():
+    modelC("Topics.txt", "Doc_Collection")
+
+
+if __name__ == "__main__":
+    main()

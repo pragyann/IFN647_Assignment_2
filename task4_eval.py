@@ -1,4 +1,6 @@
 import os
+from math import log2
+
 from topics import load_topics
 
 MODELS = ["Baseline1", "Baseline2", "ModelC"]
@@ -88,6 +90,29 @@ def precision_at_rank_10(ranking, relevance):
 
     return float(relevant_found) / float(rank)
 
+
+def discounted_cumulative_gain_at_rank_10(ranking, relevance):
+    """
+    Function that computes discounted cumulative gain at rank position 10.\n
+    Parameters:
+        `ranking` - ordered list of document IDs
+        `relevance` - relevance dictionary `{DocID: relevance_label}`\n
+    Return value: DCG at rank position 10
+    """
+    rank = 10
+    dcg10 = 0.0
+
+    for position, DocID in enumerate(ranking[:rank], start=1):
+        rel_i = relevance.get(DocID, 0)
+
+        if position == 1:
+            dcg10 = dcg10 + rel_i
+        else:
+            dcg10 = dcg10 + (rel_i / log2(position))
+
+    return dcg10
+
+
 def mean_score(scores, topics):
     """
     Function that computes the mean score over all topics.\n
@@ -129,19 +154,21 @@ def print_table(title, topics, model_scores, summary_label):
 
 def evaluate_all_models(ranking_dir, judgement_dir):
     """
-    Function that evaluates all ranking models using AP and precision@10.\n
+    Function that evaluates all ranking models using AP, precision@10, and DCG10.\n
     Parameters:
         `ranking_dir` - folder containing model ranking files
         `judgement_dir` - folder containing relevance judgement files\n
-    Return value: tuple `(ap_results, p10_results)`
+    Return value: tuple `(ap_results, p10_results, dcg10_results)`
     """
     topics = load_topics('Topics.txt')
     ap_results = {}
     p10_results = {}
+    dcg10_results = {}
 
     for model_name in MODELS:
         ap_results[model_name] = {}
         p10_results[model_name] = {}
+        dcg10_results[model_name] = {}
 
     for topic in topics:
         topic_id = topic.topic_id
@@ -155,14 +182,17 @@ def evaluate_all_models(ranking_dir, judgement_dir):
             
             ap_score = average_precision(ranking, relevance)
             p10_score = precision_at_rank_10(ranking, relevance)
+            dcg10_score = discounted_cumulative_gain_at_rank_10(ranking, relevance)
 
             ap_results[model_name][topic_id] = ap_score
             p10_results[model_name][topic_id] = p10_score
+            dcg10_results[model_name][topic_id] = dcg10_score
 
     print_table("Average Precision", topics, ap_results, "MAP")
     print_table(f"Precision@10", topics, p10_results, "Average")
+    print_table("DCG10", topics, dcg10_results, "Average")
 
-    return ap_results, p10_results
+    return ap_results, p10_results, dcg10_results
 
 
 def main():

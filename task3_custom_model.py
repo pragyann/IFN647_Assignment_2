@@ -8,7 +8,7 @@ from topics import Topic, load_topics
 
 TOP_R = 20
 BOTTOM_NR = 0
-ALPHA = 8
+ALPHA = 20
 BETA = 16
 GAMMA = 0 
 LAMBDA_MODEL = 0.9

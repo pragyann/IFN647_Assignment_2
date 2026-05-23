@@ -17,10 +17,10 @@ from topics import load_topics
 TOPICS_FILE_PATH = "Topics.txt"
 DOC_COLLECTION_PATH = "Doc_Collection"
 
-TOP_R_VALUES = [10, 20]
+TOP_R_VALUES = [10, 15, 20]
 BOTTOM_NR_VALUES = [0, 10]
-ALPHA_VALUES = [8]
-BETA_VALUES = [16]
+ALPHA_VALUES = [8, 10, 20]
+BETA_VALUES = [16, 20]
 GAMMA_VALUES = [0, 4]
 LAMBDA_MODEL_VALUES = [0.8, 0.9]
 THETA_VALUES = [2.5, 3.0, 3.5]

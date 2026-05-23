@@ -6,12 +6,12 @@ from coll import BowColl, parseQuery, parse_documents, load_stop_words, rank_doc
 from topics import Topic, load_topics
 
 
-TOP_R = 10
+TOP_R = 20
 BOTTOM_NR = 10
 ALPHA = 8
 BETA = 16
 GAMMA = 4
-LAMBDA_MODEL = 0.7
+LAMBDA_MODEL = 0.9
 THETA = 3.5
 
 
@@ -35,8 +35,8 @@ def build_weighted_query(Ti: Topic, stop_words):
 
     # Title terms are the most important, followed by description and narrative terms
     add_weighted_terms(TitleTerms, 1.0)
-    add_weighted_terms(DescTerms, 0.05)
-    add_weighted_terms(NarrTerms, 0.025)
+    add_weighted_terms(DescTerms, 0)
+    add_weighted_terms(NarrTerms, 0)
 
     return Q
 
@@ -49,10 +49,10 @@ def select_feedback_docs(RankedList, coll: BowColl):
     Return value: tuple `(D_plus, D_minus)` containing selected document objects
     """
     # D_plus contains the top ranked documents
-    D_plus_ids = [DocID for DocID, score in RankedList[:TOP_R]]
+    D_plus_ids = [DocID for DocID, _ in RankedList[:TOP_R]]
 
     # D_minus contains the bottom ranked documents
-    D_minus_ids = [DocID for DocID, score in RankedList[-BOTTOM_NR:]]
+    D_minus_ids = [DocID for DocID, _ in RankedList[-BOTTOM_NR:]]
 
     D_plus = [coll.get_doc(DocID) for DocID in D_plus_ids]
     D_minus = [coll.get_doc(DocID) for DocID in D_minus_ids]
@@ -156,17 +156,12 @@ def w5_feedback_weights(T, Qm, term_df, r, N, R):
         # Relevance-feedback evidence for term t
         numerator = (r_t + 0.5) / (R - r_t + 0.5)
         denominator = (n_t - r_t + 0.5) / (N - n_t - R + r_t + 0.5)
-        feedback_weight = log10(numerator / denominator)
-
-        # Negative feedback weights are clipped so selected features contribute positively
-        feedback_weight = max(0, feedback_weight)
-
+        feedback_weight = numerator / denominator
+        
         # Combine Rocchio-modified query evidence and feedback evidence
-        rocchio_weight = max(0, Qm.get(t, 0))
+        rocchio_weight = Qm.get(t, 0)
 
-        print(rocchio_weight, feedback_weight)
-        W5[t] = max(0, (LAMBDA_MODEL * rocchio_weight) + ((1 - LAMBDA_MODEL) * feedback_weight))
-
+        W5[t] = (LAMBDA_MODEL * rocchio_weight) + ((1 - LAMBDA_MODEL) * feedback_weight)
     return W5
 
 

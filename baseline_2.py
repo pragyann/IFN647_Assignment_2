@@ -103,8 +103,8 @@ def likelihood_JM(I, Q, lamda=LAMBDA):
         `lamda` - JM smoothing parameter\n
     Return value: dictionary of JM likelihood scores `{DocID: JM_score}`
     """
-    L = {}
-    R = {}
+    L = {} # L is the selected inverted list
+    R = {} # R is a dictionary of docId:score
     D_len = {}
 
     # Get all document IDs, initialize scores as 0, and select query posting lists
@@ -113,7 +113,7 @@ def likelihood_JM(I, Q, lamda=LAMBDA):
             R[DocID] = 0.0
             D_len[DocID] = 0.5 # initialize a small non-zero value as it will be used as denominator
 
-        if term in Q:
+        if term in Q:  # select inverted lists based on the query
             L[term] = posting_list
 
     # Add empty posting lists for query terms that do not occur in this dataset

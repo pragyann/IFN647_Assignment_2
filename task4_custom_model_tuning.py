@@ -24,6 +24,21 @@ BETA_VALUES = [16, 20]
 GAMMA_VALUES = [0, 4]
 LAMBDA_MODEL_VALUES = [0.8, 0.9]
 THETA_VALUES = [2.5, 3.0, 3.5]
+TITLE_WEIGHT_VALUES = [1.0, 1.2]
+DESC_WEIGHT_VALUES = [0.1, 0.2, 0.5]
+
+
+def print_and_write(output_file, text=""):
+    """
+    Function that prints one line and writes the same line to the tuning result file.\n
+    Parameters:
+        `output_file` - open file object for tuning results
+        `text` - text to print and write\n
+    Return value: none
+    """
+    print(text)
+    output_file.write(text + "\n")
+
 
 def evaluate_modelC():
     """
@@ -65,6 +80,8 @@ def run_modelC_with_parameters(
     gamma,
     lambda_model,
     theta,
+    title_weight,
+    desc_weight,
 ):
     """
     Function that runs Model_C for one set of tuning parameters.\n
@@ -82,9 +99,11 @@ def run_modelC_with_parameters(
         gamma,
         lambda_model,
         theta,
+        title_weight,
+        desc_weight,
     )
 
-def print_best_result(title, result):
+def print_best_result(title, result, output_file):
     """
     Function that prints the best parameter set for one evaluation metric.\n
     Parameters:
@@ -92,18 +111,18 @@ def print_best_result(title, result):
         `result` - dictionary containing parameters and evaluation scores\n
     Return value: none
     """
-    print(title)
-    print(f"MAP = {result['map_score']:.3f}")
-    print(f"Average Precision@10 = {result['average_p10_score']:.3f}")
-    print(f"Average DCG10 = {result['average_dcg10_score']:.3f}")
-    print("Parameters:")
+    print_and_write(output_file, title)
+    print_and_write(output_file, f"MAP = {result['map_score']:.3f}")
+    print_and_write(output_file, f"Average Precision@10 = {result['average_p10_score']:.3f}")
+    print_and_write(output_file, f"Average DCG10 = {result['average_dcg10_score']:.3f}")
+    print_and_write(output_file, "Parameters:")
 
     for parameter_name, parameter_value in result["parameters"].items():
-        print(f"{parameter_name} = {parameter_value}")
+        print_and_write(output_file, f"{parameter_name} = {parameter_value}")
 
-    print()
+    print_and_write(output_file)
 
-def grid_search_modelC():
+def grid_search_modelC(output_file):
     """
     Function that performs a simple for-loop grid search over Model_C parameters.\n
     Return value: tuple `(best_map_result, best_p10_result, best_dcg10_result)`
@@ -116,6 +135,8 @@ def grid_search_modelC():
         * len(GAMMA_VALUES)
         * len(LAMBDA_MODEL_VALUES)
         * len(THETA_VALUES)
+        * len(TITLE_WEIGHT_VALUES)
+        * len(DESC_WEIGHT_VALUES)
     )
     run_count = 0
     best_map_result = None
@@ -129,70 +150,77 @@ def grid_search_modelC():
                     for gamma in GAMMA_VALUES:
                         for lambda_model in LAMBDA_MODEL_VALUES:
                             for theta in THETA_VALUES:
-                                run_count = run_count + 1
-                                parameters = {
-                                    "top_r": top_r,
-                                    "bottom_nr": bottom_nr,
-                                    "alpha": alpha,
-                                    "beta": beta,
-                                    "gamma": gamma,
-                                    "lambda_model": lambda_model,
-                                    "theta": theta,
-                                }
+                                for title_weight in TITLE_WEIGHT_VALUES:
+                                    for desc_weight in DESC_WEIGHT_VALUES:
+                                        run_count = run_count + 1
+                                        parameters = {
+                                            "top_r": top_r,
+                                            "bottom_nr": bottom_nr,
+                                            "alpha": alpha,
+                                            "beta": beta,
+                                            "gamma": gamma,
+                                            "lambda_model": lambda_model,
+                                            "theta": theta,
+                                            "title_weight": title_weight,
+                                            "desc_weight": desc_weight,
+                                        }
 
-                                print(f"Grid search run {run_count}/{total_runs}")
-                                run_modelC_with_parameters(
-                                    top_r,
-                                    bottom_nr,
-                                    alpha,
-                                    beta,
-                                    gamma,
-                                    lambda_model,
-                                    theta,
-                                )
+                                        print_and_write(output_file, f"Grid search run {run_count}/{total_runs}")
+                                        run_modelC_with_parameters(
+                                            top_r,
+                                            bottom_nr,
+                                            alpha,
+                                            beta,
+                                            gamma,
+                                            lambda_model,
+                                            theta,
+                                            title_weight,
+                                            desc_weight,
+                                        )
 
-                                map_score, average_p10_score, average_dcg10_score, = evaluate_modelC()
+                                        map_score, average_p10_score, average_dcg10_score, = evaluate_modelC()
 
-                                result = {
-                                    "parameters": parameters,
-                                    "map_score": map_score,
-                                    "average_p10_score": average_p10_score,
-                                    "average_dcg10_score": average_dcg10_score,
-                                }
+                                        result = {
+                                            "parameters": parameters,
+                                            "map_score": map_score,
+                                            "average_p10_score": average_p10_score,
+                                            "average_dcg10_score": average_dcg10_score,
+                                        }
 
-                                print(f"MAP = {map_score:.3f}")
-                                print(f"Average Precision@10 = {average_p10_score:.3f}")
-                                print(f"Average DCG10 = {average_dcg10_score:.3f}")
-                                print()
+                                        print_and_write(output_file, f"MAP = {map_score:.3f}")
+                                        print_and_write(output_file, f"Average Precision@10 = {average_p10_score:.3f}")
+                                        print_and_write(output_file, f"Average DCG10 = {average_dcg10_score:.3f}")
+                                        print_and_write(output_file)
 
-                                if (
-                                    best_map_result is None
-                                    or map_score > best_map_result["map_score"]
-                                ):
-                                    best_map_result = result
+                                        if (
+                                            best_map_result is None
+                                            or map_score > best_map_result["map_score"]
+                                        ):
+                                            best_map_result = result
 
-                                if (
-                                    best_p10_result is None
-                                    or average_p10_score
-                                    > best_p10_result["average_p10_score"]
-                                ):
-                                    best_p10_result = result
+                                        if (
+                                            best_p10_result is None
+                                            or average_p10_score
+                                            > best_p10_result["average_p10_score"]
+                                        ):
+                                            best_p10_result = result
 
-                                if (
-                                    best_dcg10_result is None
-                                    or average_dcg10_score
-                                    > best_dcg10_result["average_dcg10_score"]
-                                ):
-                                    best_dcg10_result = result
+                                        if (
+                                            best_dcg10_result is None
+                                            or average_dcg10_score
+                                            > best_dcg10_result["average_dcg10_score"]
+                                        ):
+                                            best_dcg10_result = result
 
-    print_best_result("Best parameters by MAP", best_map_result)
-    print_best_result("Best parameters by Average Precision@10", best_p10_result)
-    print_best_result("Best parameters by Average DCG10", best_dcg10_result)
+    print_best_result("Best parameters by MAP", best_map_result, output_file)
+    print_best_result("Best parameters by Average Precision@10", best_p10_result, output_file)
+    print_best_result("Best parameters by Average DCG10", best_dcg10_result, output_file)
 
     return best_map_result, best_p10_result, best_dcg10_result
 
 def main():
-    grid_search_modelC()
+    with open("task4_modelc_tuning_result.txt", "w") as output_file:
+        grid_search_modelC(output_file)
 
 
 if __name__ == "__main__":

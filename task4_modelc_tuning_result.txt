@@ -10,6 +10,8 @@ beta = 16
 gamma = 0
 lambda_model = 0.9
 theta = 2.5
+title_weight = 1.0
+desc_weight = 0.2
 
 Best parameters by Average Precision@10
 MAP = 0.544
@@ -23,6 +25,8 @@ beta = 16
 gamma = 0
 lambda_model = 0.8
 theta = 2.5
+title_weight = 1.0
+desc_weight = 0.2
 
 Best parameters by Average DCG10
 MAP = 0.581
@@ -36,3 +40,5 @@ beta = 16
 gamma = 0
 lambda_model = 0.9
 theta = 2.5
+title_weight = 1.0
+desc_weight = 0.2

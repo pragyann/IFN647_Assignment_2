@@ -13,12 +13,18 @@ BETA = 16
 GAMMA = 0 
 LAMBDA_MODEL = 0.9
 THETA = 2.5
+TITLE_WEIGHT = 1.0
+DESC_WEIGHT = 0.2
 
 
-def build_weighted_query(Ti: Topic, stop_words):
+def build_weighted_query(Ti: Topic, stop_words, title_weight, desc_weight):
     """
     Function that builds a weighted topic query from title, description, and narrative fields.\n
-    Parameters: `Ti` - topic object, `stop_words` - list of stop words to exclude during parsing\n
+    Parameters:
+        `Ti` - topic object
+        `stop_words` - list of stop words to exclude during parsing
+        `title_weight` - weight applied to title query terms
+        `desc_weight` - weight applied to description query terms\n
     Return value: weighted query dictionary `{term: weight}`
     """
     # Adds terms from one topic field to Q using that field's weight
@@ -34,8 +40,8 @@ def build_weighted_query(Ti: Topic, stop_words):
     NarrTerms = parseQuery(Ti.narrative, stop_words)
 
     # Title terms are the most important, followed by description and narrative terms
-    add_weighted_terms(TitleTerms, 1.0)
-    add_weighted_terms(DescTerms, 0.2)
+    add_weighted_terms(TitleTerms, title_weight)
+    add_weighted_terms(DescTerms, desc_weight)
     add_weighted_terms(NarrTerms, 0)
 
     return Q
@@ -248,6 +254,8 @@ def modelC(
     gamma=GAMMA,
     lambda_model=LAMBDA_MODEL,
     theta=THETA,
+    title_weight=TITLE_WEIGHT,
+    desc_weight=DESC_WEIGHT,
 ):
     """
     Function that runs Model_C ranking over all topics and datasets.\n
@@ -260,7 +268,9 @@ def modelC(
         `beta` - pseudo-relevant feedback weight
         `gamma` - pseudo non-relevant feedback weight
         `lambda_model` - weighting factor for Rocchio evidence
-        `theta` - feature selection threshold offset\n
+        `theta` - feature selection threshold offset
+        `title_weight` - weight applied to title query terms of the topic
+        `desc_weight` - weight applied to description query terms of the topic\n
     Return value: dictionary `{topic_id: ranked_list}`
     """
     output_dir = "ModelOutputs"
@@ -276,7 +286,7 @@ def modelC(
         Ri = Ti.topic_id
 
         # Q is built from title, description, and narrative fields
-        Q = build_weighted_query(Ti, stop_words)
+        Q = build_weighted_query(Ti, stop_words, title_weight, desc_weight)
 
         # Dataset101 corresponds to topic R101, Dataset102 to R102, and so on
         dataset_directory = os.path.join(doc_collection_path, f"Dataset{Ri[1:]}")

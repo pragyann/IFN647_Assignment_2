@@ -1,13 +1,13 @@
 import os
 from math import log10
 
-from baseline_1 import bm25, df
+from task3_baseline1 import bm25, df
 from coll import BowColl, parseQuery, parse_documents, load_stop_words, rank_documents
 from topics import Topic, load_topics
 
 
 TOP_R = 10
-BOTTOM_NR = 20
+BOTTOM_NR = 10
 ALPHA = 8
 BETA = 16
 GAMMA = 4

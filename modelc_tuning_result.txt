@@ -1,0 +1,38 @@
+Best parameters by MAP
+MAP = 0.519
+Average Precision@10 = 0.394
+Average DCG10 = 2.266
+Parameters:
+top_r = 20
+bottom_nr = 0
+alpha = 8
+beta = 16
+gamma = 0
+lambda_model = 0.9
+theta = 3.0
+
+Best parameters by Average Precision@10
+MAP = 0.519
+Average Precision@10 = 0.394
+Average DCG10 = 2.266
+Parameters:
+top_r = 20
+bottom_nr = 0
+alpha = 8
+beta = 16
+gamma = 0
+lambda_model = 0.9
+theta = 3.0
+
+Best parameters by Average DCG10
+MAP = 0.519
+Average Precision@10 = 0.394
+Average DCG10 = 2.266
+Parameters:
+top_r = 20
+bottom_nr = 0
+alpha = 8
+beta = 16
+gamma = 0
+lambda_model = 0.9
+theta = 3.0

@@ -4,6 +4,7 @@ from contextlib import redirect_stdout
 from task3_custom_model import modelC
 from task4_eval import (
     average_precision,
+    discounted_cumulative_gain_at_rank_10,
     load_ranking,
     load_relevance_judgements,
     mean_score,
@@ -24,14 +25,15 @@ THETA_VALUES = [3.0, 3.5]
 
 def evaluate_modelC():
     """
-    Function that evaluates Model_C ranking files using the two task4_eval metrics.\n
-    Return value: tuple `(map_score, average_p10_score)`
+    Function that evaluates Model_C ranking files using the three task4_eval metrics.\n
+    Return value: tuple `(map_score, average_p10_score, average_dcg10_score)`
     """
     ranking_dir = "ModelOutputs"
     judgement_dir = "Relevant_Judgements"
     Topics = load_topics(TOPICS_FILE_PATH)
     ap_scores = {}
     p10_scores = {}
+    dcg10_scores = {}
 
     for Ti in Topics:
         Ri = Ti.topic_id
@@ -45,11 +47,13 @@ def evaluate_modelC():
 
         ap_scores[Ri] = average_precision(ranking, relevance)
         p10_scores[Ri] = precision_at_rank_10(ranking, relevance)
+        dcg10_scores[Ri] = discounted_cumulative_gain_at_rank_10(ranking, relevance)
 
     map_score = mean_score(ap_scores, Topics)
     average_p10_score = mean_score(p10_scores, Topics)
+    average_dcg10_score = mean_score(dcg10_scores, Topics)
 
-    return map_score, average_p10_score
+    return map_score, average_p10_score, average_dcg10_score
 
 def run_modelC_with_parameters(
     top_r,
@@ -89,6 +93,7 @@ def print_best_result(title, result):
     print(title)
     print(f"MAP = {result['map_score']:.3f}")
     print(f"Average Precision@10 = {result['average_p10_score']:.3f}")
+    print(f"Average DCG10 = {result['average_dcg10_score']:.3f}")
     print("Parameters:")
 
     for parameter_name, parameter_value in result["parameters"].items():
@@ -99,7 +104,7 @@ def print_best_result(title, result):
 def grid_search_modelC():
     """
     Function that performs a simple for-loop grid search over Model_C parameters.\n
-    Return value: tuple `(best_map_result, best_p10_result)`
+    Return value: tuple `(best_map_result, best_p10_result, best_dcg10_result)`
     """
     total_runs = (
         len(TOP_R_VALUES)
@@ -113,6 +118,7 @@ def grid_search_modelC():
     run_count = 0
     best_map_result = None
     best_p10_result = None
+    best_dcg10_result = None
 
     for top_r in TOP_R_VALUES:
         for bottom_nr in BOTTOM_NR_VALUES:
@@ -143,16 +149,18 @@ def grid_search_modelC():
                                     theta,
                                 )
 
-                                map_score, average_p10_score = evaluate_modelC()
+                                map_score, average_p10_score, average_dcg10_score, = evaluate_modelC()
 
                                 result = {
                                     "parameters": parameters,
                                     "map_score": map_score,
                                     "average_p10_score": average_p10_score,
+                                    "average_dcg10_score": average_dcg10_score,
                                 }
 
                                 print(f"MAP = {map_score:.3f}")
                                 print(f"Average Precision@10 = {average_p10_score:.3f}")
+                                print(f"Average DCG10 = {average_dcg10_score:.3f}")
                                 print()
 
                                 if (
@@ -168,10 +176,18 @@ def grid_search_modelC():
                                 ):
                                     best_p10_result = result
 
+                                if (
+                                    best_dcg10_result is None
+                                    or average_dcg10_score
+                                    > best_dcg10_result["average_dcg10_score"]
+                                ):
+                                    best_dcg10_result = result
+
     print_best_result("Best parameters by MAP", best_map_result)
     print_best_result("Best parameters by Average Precision@10", best_p10_result)
+    print_best_result("Best parameters by Average DCG10", best_dcg10_result)
 
-    return best_map_result, best_p10_result
+    return best_map_result, best_p10_result, best_dcg10_result
 
 def main():
     grid_search_modelC()

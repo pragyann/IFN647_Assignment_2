@@ -7,12 +7,12 @@ from topics import Topic, load_topics
 
 
 TOP_R = 20
-BOTTOM_NR = 10
+BOTTOM_NR = 0
 ALPHA = 8
 BETA = 16
-GAMMA = 4
+GAMMA = 0 
 LAMBDA_MODEL = 0.9
-THETA = 3.5
+THETA = 3
 
 
 def build_weighted_query(Ti: Topic, stop_words):

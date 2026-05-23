@@ -4,6 +4,7 @@ from math import log2
 from topics import load_topics
 
 MODELS = ["Baseline1", "Baseline2", "ModelC"]
+EVALUATION_OUTPUT_FILE = "task4_eval_results.txt"
 
 def load_relevance_judgements(judgement_path):
     """
@@ -133,24 +134,29 @@ def print_table(title, topics, model_scores, summary_label):
         `topic_ids` - list of topic IDs
         `model_scores` - dictionary `{model_name: {topic_id: score}}`
         `summary_label` - final row label, e.g. `MAP` or `Average`\n
-    Return value: none
+    Return value: formatted table text
     """
-    print(title)
-    print("Topic\t" + "\t".join(MODELS))
+    lines = []
+    lines.append(title)
+    lines.append("Topic\t" + "\t".join(MODELS))
 
     for topic in topics:
         topic_id = topic.topic_id
         row = [topic_id]
         for model_name in MODELS:
             row.append(f"{model_scores[model_name][topic_id]:.3f}")
-        print("\t".join(row))
+        lines.append("\t".join(row))
 
     row = [summary_label]
     for model_name in MODELS:
         row.append(f"{mean_score(model_scores[model_name], topics):.3f}")
-    print("\t".join(row))
-    print()
+    lines.append("\t".join(row))
+    lines.append("")
 
+    table_text = "\n".join(lines) + "\n"
+    print(table_text, end="")
+
+    return table_text
 
 def evaluate_all_models(ranking_dir, judgement_dir):
     """
@@ -188,9 +194,14 @@ def evaluate_all_models(ranking_dir, judgement_dir):
             p10_results[model_name][topic_id] = p10_score
             dcg10_results[model_name][topic_id] = dcg10_score
 
-    print_table("Average Precision", topics, ap_results, "MAP")
-    print_table(f"Precision@10", topics, p10_results, "Average")
-    print_table("DCG10", topics, dcg10_results, "Average")
+    output_text = ""
+    output_text = output_text + print_table("Average Precision", topics, ap_results, "MAP")
+    output_text = output_text + print_table(f"Precision@10", topics, p10_results, "Average")
+    output_text = output_text + print_table("DCG10", topics, dcg10_results, "Average")
+
+    output_file = open(EVALUATION_OUTPUT_FILE, "w")
+    output_file.write(output_text)
+    output_file.close()
 
     return ap_results, p10_results, dcg10_results
 

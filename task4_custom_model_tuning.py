@@ -23,7 +23,7 @@ ALPHA_VALUES = [8]
 BETA_VALUES = [16]
 GAMMA_VALUES = [0, 4]
 LAMBDA_MODEL_VALUES = [0.8, 0.9]
-THETA_VALUES = [3.0, 3.5]
+THETA_VALUES = [2.5, 3.0, 3.5]
 
 def evaluate_modelC():
     """

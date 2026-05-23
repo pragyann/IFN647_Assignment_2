@@ -12,7 +12,7 @@ ALPHA = 8
 BETA = 16
 GAMMA = 0 
 LAMBDA_MODEL = 0.9
-THETA = 3
+THETA = 2.5
 
 
 def build_weighted_query(Ti: Topic, stop_words):
@@ -35,7 +35,7 @@ def build_weighted_query(Ti: Topic, stop_words):
 
     # Title terms are the most important, followed by description and narrative terms
     add_weighted_terms(TitleTerms, 1.0)
-    add_weighted_terms(DescTerms, 0)
+    add_weighted_terms(DescTerms, 0.2)
     add_weighted_terms(NarrTerms, 0)
 
     return Q

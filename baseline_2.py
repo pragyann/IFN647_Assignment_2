@@ -1,109 +1,152 @@
+import glob
 import os
+import string
 from math import log10
 
-from coll import BowColl, parse_documents, parseQuery, load_stop_words
+from coll import parseQuery, load_stop_words
+from stemming.porter2 import stem
 from topics import Topic, load_topics
-
 
 LAMBDA = 0.3
 
-def build_index(coll: BowColl):
+
+def index_docs(inputpath, stop_words):
     """
-    Function that builds an inverted index and document length dictionary from a collection.\n
-    Parameters: `coll` - collection of documents as `BowColl`\n
-    Return value: tuple `(I, DocLengths)` where `I` is `{term: {DocID: frequency}}` and `DocLengths` is `{DocID: length}`
+    Function that builds an inverted index directly from XML files in a dataset folder.\n
+    Parameters: `inputpath` - path of dataset folder, `stop_words` - list of stop words to exclude\n
+    Return value: inverted index `{term: {DocID: frequency}}`
     """
-    I = {}
-    DocLengths = {}
+    Index = {}
 
-    for DocID, D in coll.get_docs().items():
-        # Store |D|, the length of the current document
-        DocLengths[DocID] = D.get_doc_len()
+    for file_ in glob.glob(f"{inputpath}/*.xml"):
+        docid = None
+        start_end = False
 
-        # Add every term frequency to the posting list for that term
-        for term, freq in D.get_term_freq_dict().items():
-            if term not in I:
-                I[term] = {}
-            I[term][DocID] = freq
+        for line in open(file_, "r", encoding="latin-1", errors="ignore"):
+            line = line.strip()
 
-    return I, DocLengths
+            if start_end == False:
+                # Extract document ID from itemid in the <newsitem> tag
+                if line.startswith("<newsitem "):
+                    for part in line.split():
+                        if part.startswith("itemid="):
+                            docid = part.split("=")[1].split("\"")[1]
+                            break
+
+                # Start indexing only after the <text> tag
+                if line.startswith("<text>"):
+                    start_end = True
+
+            elif line.startswith("</text>"):
+                # Stop reading terms after the document text ends
+                break
+
+            elif docid is not None:
+                # Clean paragraph tags, digits, and punctuation before term extraction
+                line = line.replace("<p>", "").replace("</p>", "")
+                line = line.translate(str.maketrans("", "", string.digits)).translate(
+                    str.maketrans(string.punctuation, " " * len(string.punctuation))
+                )
+
+                for term in line.split():
+                    # Apply stemming, length check, and stop-word removal
+                    term = stem(term.lower())
+                    if len(term) > 2 and term not in stop_words:
+                        if term not in Index:
+                            Index[term] = {}
+                        Index[term][docid] = Index[term].get(docid, 0) + 1
+
+    return Index
 
 
-def collection_len(DocLengths):
+def collection_len(I):
     """
     Function that computes total number of word occurrences in a dataset.\n
-    Parameters: `DocLengths` - document length dictionary `{DocID: length}`\n
+    Parameters: `I` - inverted index `{term: {DocID: frequency}}`\n
     Return value: total number of word occurrences `|Dataset_i|`
     """
     total_dataset_length = 0
 
-    # Sum all document lengths to compute |Dataset_i|
-    for dl in DocLengths.values():
-        total_dataset_length = total_dataset_length + dl
+    # Count collection length by summing all term frequencies in the index
+    for posting_list in I.values():
+        for freq in posting_list.values():
+            total_dataset_length = total_dataset_length + freq
 
     return total_dataset_length
 
 
-def collection_term_counts(I, Qi):
+def collection_term_counts(I, Q):
     """
     Function that computes collection frequency for each query term.\n
     Parameters:
         `I` - inverted index `{term: {DocID: frequency}}`
-        `Qi` - parsed topic title query dictionary `{term: frequency}`\n
+        `Q` - parsed topic title query dictionary `{term: frequency}`\n
     Return value: dictionary `{q_j: c_qj}`
     """
-    C = {}
+    CF = {}
 
-    for q_j in Qi:
-        # c_qj = total number of times query term q_j occurs in Dataset_i
+    for q_j in Q:
+        # CF[q_j] = total number of times query term q_j occurs in Dataset_i
+        CF[q_j] = 0
         if q_j in I:
-            C[q_j] = sum(I[q_j].values())
-        else:
-            C[q_j] = 0
+            CF[q_j] = sum(I[q_j].values())
 
-    return C
+    return CF
 
 
-def jm_likelihood(I, DocLengths, Qi, C, lambda_value=LAMBDA):
+def likelihood_JM(I, Q, lamda=LAMBDA):
     """
-    Function that computes JM-smoothed likelihood scores for all documents in one dataset.\n
+    Function that computes JM-smoothed log likelihood scores.\n
     Parameters:
-        `I` - inverted index `{term: {DocID: frequency}}`
-        `DocLengths` - document length dictionary `{DocID: length}`
-        `Qi` - parsed topic title query dictionary `{term: qf_j}`
-        `C` - collection term counts `{q_j: c_qj}`
-        `lambda_value` - JM smoothing parameter\n
-    Return value: dictionary of JM scores `{DocID: JM_score}`
+        `I` - single inverted index `{term: {DocID: frequency}}` used as both collection and document index
+        `Q` - parsed topic title query dictionary `{term: frequency}`
+        `lamda` - JM smoothing parameter\n
+    Return value: dictionary of JM likelihood scores `{DocID: JM_score}`
     """
-    Score = {}
-    Dataset_i_len = collection_len(DocLengths)
+    L = {}
+    R = {}
+    D_len = {}
 
-    if Dataset_i_len == 0:
-        return Score
+    # Get all document IDs, initialize scores as 0, and select query posting lists
+    for term, posting_list in I.items():
+        for DocID in posting_list:
+            R[DocID] = 0.0
+            D_len[DocID] = 0.5 # initialize a small non-zero value as it will be used as denominator
 
-    for DocID, D_len in DocLengths.items():
-        Score[DocID] = 0.0
+        if term in Q:
+            L[term] = posting_list
 
-        # Skip probability calculation for an empty document to avoid division by zero
-        if D_len == 0:
-            continue
+    # Add empty posting lists for query terms that do not occur in this dataset
+    for q_term in Q:
+        if q_term not in L:
+            L[q_term] = {}
 
-        # Score[D] is the sum of log probabilities for all query terms q_j
-        for q_j, qf_j in Qi.items():
-            # f_qj_D = number of times query term q_j occurs in document D
-            f_qj_D = I.get(q_j, {}).get(DocID, 0)
+    # Count document length from the index
+    for posting_list in I.values():
+        for DocID, freq in posting_list.items():
+            D_len[DocID] = D_len[DocID] + freq
 
-            # c_qj = number of times query term q_j occurs in the whole Dataset_i
-            c_qj = C.get(q_j, 0)
+    # Compute collection frequency CF[q_j] for each query term from the same single index
+    CF = collection_term_counts(I, Q)
+    C_len = collection_len(I)
 
-            # JM probability: (1 - lambda) * P(q_j|D) + lambda * P(q_j|Dataset_i)
-            jm_prob = ((1 - lambda_value) * (f_qj_D / D_len)) + (lambda_value * (c_qj / Dataset_i_len))
+    if C_len == 0:
+        return R
 
-            # If a query term never appears in the dataset, it contributes no log score
+    # JM log likelihood:
+    # score(D) = sum over query terms of log10((1-lamda) * f_qj,D / |D| + lamda * CF[q_j] / |C|)
+    for DocID, sd in R.items():
+        for term, posting_list in L.items():
+            f_qj_D = posting_list.get(DocID, 0)
+            jm_prob = ((1 - lamda) * f_qj_D / D_len[DocID]) + (lamda * CF[term] / C_len)
+
+            # Only positive probabilities have a finite logarithm
             if jm_prob > 0:
-                Score[DocID] = Score[DocID] + (qf_j * log10(jm_prob))
+                sd = sd + (log10(jm_prob))
 
-    return Score
+        R[DocID] = sd
+
+    return R
 
 
 def rank_documents(Score):
@@ -160,23 +203,17 @@ def baseline2(topics_file_path, doc_collection_path):
         # Ri is the topic number, e.g. R101
         Ri = Ti.topic_id
 
-        # Qi is parsed from topic title as required by the assignment specification
+        # Qi is parsed from the topic title
         Qi = parseQuery(Ti.title, stop_words)
 
         # Dataset101 corresponds to topic R101, Dataset102 to R102, and so on
         dataset_directory = os.path.join(doc_collection_path, f"Dataset{Ri[1:]}")
 
-        # ParseDocuments returns Dataset_i as a BowColl of BowDoc objects
-        dataset = parse_documents(dataset_directory, stop_words)
-
-        # Build I and DocLengths for JM likelihood calculation
-        I, DocLengths = build_index(dataset)
-
-        # C stores collection frequency c_qj for every query term q_j
-        C = collection_term_counts(I, Qi)
+        # Build I directly from XML files
+        I = index_docs(dataset_directory, stop_words)
 
         # Compute JM Score[D] for every document D in Dataset_i
-        Score = jm_likelihood(I, DocLengths, Qi, C, LAMBDA)
+        Score = likelihood_JM(I, Qi, LAMBDA)
 
         # Sort documents in descending order of JM score and save the ranking
         RankedList = rank_documents(Score)

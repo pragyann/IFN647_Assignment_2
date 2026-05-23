@@ -1,5 +1,7 @@
+"""
+Running this file will change values in the output files of the custom model in ModelOutputs/ModelC_R{topic_number}_Ranking.dat
+"""
 import os
-from contextlib import redirect_stdout
 
 from task3_custom_model import modelC
 from task4_eval import (

@@ -168,14 +168,13 @@ def w5_feedback_weights(T, Qm, term_df, r, N, R, lambda_model):
         # Relevance-feedback evidence for term t
         numerator = (r_t + 0.5) / (R - r_t + 0.5)
         denominator = (n_t - r_t + 0.5) / (N - n_t - R + r_t + 0.5)
-        feedback_weight = numerator / denominator
+        w5 = numerator / denominator
         
         # Combine Rocchio-modified query evidence and feedback evidence
         rocchio_weight = Qm.get(t, 0)
 
-        W5[t] = (lambda_model * rocchio_weight) + ((1 - lambda_model) * feedback_weight)
+        W5[t] = (lambda_model * rocchio_weight) + ((1 - lambda_model) * w5)
     return W5
-
 
 def select_features(W5, theta):
     """

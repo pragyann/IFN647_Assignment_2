@@ -275,6 +275,7 @@ def modelC(
     output_dir = "ModelOutputs"
     os.makedirs(output_dir, exist_ok=True)
 
+    # STEP 1a: Preprocess topics 
     # Read all topics and stop words before looping through datasets
     Topics = load_topics(topics_file_path)
     stop_words = load_stop_words()
@@ -284,36 +285,47 @@ def modelC(
         # Ri is the topic number, e.g. R101
         Ri = Ti.topic_id
 
+        # STEP 1b: Preprocess documents 
+        dataset_directory = os.path.join(doc_collection_path, f"Dataset{Ri[1:]}")
+        dataset = parse_documents(dataset_directory, stop_words)
+
+        # STEP 2: Build the weighted query
         # Q is built from title, description, and narrative fields
         Q = build_weighted_query(Ti, stop_words, title_weight, desc_weight)
 
         # Dataset101 corresponds to topic R101, Dataset102 to R102, and so on
-        dataset_directory = os.path.join(doc_collection_path, f"Dataset{Ri[1:]}")
 
         # ParseDocuments returns Dataset_i as a BowColl of BowDoc objects
-        dataset = parse_documents(dataset_directory, stop_words)
         N = dataset.get_num_docs()
 
         # Get document frequency n_t for every term in Dataset_i
         term_df = df(dataset)
 
+        # STEP 3: Initial ranking using BM25
         # First-pass BM25 ranking for pseudo-relevance feedback
         InitialScore = bm25(dataset, Q, term_df)
         InitialRankedList = rank_documents(InitialScore)
 
+        # STEP 4: Pseudo relevance feedback
         # Select pseudo-relevant and pseudo non-relevant documents
         D_plus, D_minus = select_feedback_docs(InitialRankedList, dataset, top_r, bottom_nr)
         R = len(D_plus)
 
+        # STEP 5: Rocchio Query update Q'
         # Update the query using Rocchio pseudo-relevance feedback
         Qm = rocchio_query_update(Q, D_plus, D_minus, alpha, beta, gamma)
 
+        # STEP 6: Learn feature weights
         # Compute feedback counts and final feature weights
         r = pseudo_relevance_counts(D_plus)
         T = candidate_terms(Qm, D_plus)
         W5 = w5_feedback_weights(T, Qm, term_df, r, N, R, lambda_model)
+
+        # STEP 7: Select final features
+        # Final set of features
         Features = select_features(W5, theta)
 
+        # STEP 8: Compute document score
         # Final ranking based on selected features and learned weights
         Score = feature_score(dataset, Features)
         RankedList = rank_documents(Score)

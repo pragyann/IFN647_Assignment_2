@@ -166,7 +166,7 @@ def evaluate_all_models(ranking_dir, judgement_dir):
         `judgement_dir` - folder containing relevance judgement files\n
     Return value: tuple `(ap_results, p10_results, dcg10_results)`
     """
-    topics = load_topics('Topics.txt')
+    topics = load_topics('data/Topics.txt')
     ap_results = {}
     p10_results = {}
     dcg10_results = {}
@@ -207,7 +207,7 @@ def evaluate_all_models(ranking_dir, judgement_dir):
 
 
 def main():
-    evaluate_all_models("ModelOutputs", "Relevant_Judgements")
+    evaluate_all_models("ModelOutputs", "data/Relevant_Judgements")
 
 
 if __name__ == "__main__":

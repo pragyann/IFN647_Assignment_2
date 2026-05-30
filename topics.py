@@ -76,7 +76,7 @@ def load_topics(path):
 
 
 def main():
-    topics = load_topics("Topics.txt")
+    topics = load_topics("data/Topics.txt")
 
     for topic in topics:
         print(f"Topic ID: {topic.topic_id}")

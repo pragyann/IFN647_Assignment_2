@@ -220,7 +220,7 @@ def baseline2(topics_file_path, doc_collection_path):
 
 
 def main():
-    baseline2("Topics.txt", "Doc_Collection")
+    baseline2("data/Topics.txt", "data/Doc_Collection")
 
 
 if __name__ == "__main__":

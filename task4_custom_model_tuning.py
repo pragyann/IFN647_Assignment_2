@@ -14,8 +14,8 @@ from task4_eval import (
 )
 from topics import load_topics
 
-TOPICS_FILE_PATH = "Topics.txt"
-DOC_COLLECTION_PATH = "Doc_Collection"
+TOPICS_FILE_PATH = "data/Topics.txt"
+DOC_COLLECTION_PATH = "data/Doc_Collection"
 
 TOP_R_VALUES = [10, 15, 20]
 BOTTOM_NR_VALUES = [0, 10]
@@ -46,7 +46,7 @@ def evaluate_modelC():
     Return value: tuple `(map_score, average_p10_score, average_dcg10_score)`
     """
     ranking_dir = "ModelOutputs"
-    judgement_dir = "Relevant_Judgements"
+    judgement_dir = "data/Relevant_Judgements"
     Topics = load_topics(TOPICS_FILE_PATH)
     ap_scores = {}
     p10_scores = {}

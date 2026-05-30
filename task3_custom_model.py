@@ -330,7 +330,7 @@ def modelC(
     return all_rankings
 
 def main():
-    modelC("Topics.txt", "Doc_Collection")
+    modelC("data/Topics.txt", "data/Doc_Collection")
 
 if __name__ == "__main__":
     main()

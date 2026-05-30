@@ -1,7 +1,7 @@
 import os
 from math import log10
 
-from coll import BowColl, parse_documents, parseQuery, load_stop_words
+from coll import BowColl, parse_documents, parseQuery, load_stop_words, rank_documents
 from topics import Topic, load_topics
 
 K1 = 1.2
@@ -85,15 +85,6 @@ def bm25(coll: BowColl, Qi, term_df):
             Score[DocID] = Score[DocID] + (idf_t * doc_tf * query_tf)
 
     return Score
-
-
-def rank_documents(Score):
-    """
-    Function that sorts documents by BM25 score in descending order.\n
-    Parameters: `Score` - dictionary of BM25 scores `{DocID: BM25_score}`\n
-    Return value: ranked list of `(DocID, BM25_score)` tuples
-    """
-    return sorted(Score.items(), key=lambda x: x[1], reverse=True)
 
 
 def save_ranking(RankedList, Ti: Topic, output_dir):

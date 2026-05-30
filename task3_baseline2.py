@@ -3,7 +3,7 @@ import os
 import string
 from math import log10
 
-from coll import parseQuery, load_stop_words
+from coll import parseQuery, load_stop_words, rank_documents
 from stemming.porter2 import stem
 from topics import Topic, load_topics
 
@@ -146,15 +146,6 @@ def likelihood_JM(I, Q, lamda=LAMBDA):
         R[DocID] = sd
 
     return R
-
-
-def rank_documents(Score):
-    """
-    Function that sorts documents by JM score in descending order.\n
-    Parameters: `Score` - dictionary of JM scores `{DocID: JM_score}`\n
-    Return value: ranked list of `(DocID, JM_score)` tuples
-    """
-    return sorted(Score.items(), key=lambda x: x[1], reverse=True)
 
 
 def save_ranking(RankedList, Ti: Topic, output_dir):

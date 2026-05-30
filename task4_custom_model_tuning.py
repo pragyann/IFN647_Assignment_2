@@ -165,7 +165,7 @@ def grid_search_modelC(output_file):
                                             "desc_weight": desc_weight,
                                         }
 
-                                        print_and_write(output_file, f"Grid search run {run_count}/{total_runs}")
+                                        print(f"Grid search run {run_count}/{total_runs}")
                                         run_modelC_with_parameters(
                                             top_r,
                                             bottom_nr,
@@ -187,10 +187,10 @@ def grid_search_modelC(output_file):
                                             "average_dcg10_score": average_dcg10_score,
                                         }
 
-                                        print_and_write(output_file, f"MAP = {map_score:.3f}")
-                                        print_and_write(output_file, f"Average Precision@10 = {average_p10_score:.3f}")
-                                        print_and_write(output_file, f"Average DCG10 = {average_dcg10_score:.3f}")
-                                        print_and_write(output_file)
+                                        print(f"MAP = {map_score:.3f}")
+                                        print(f"Average Precision@10 = {average_p10_score:.3f}")
+                                        print(f"Average DCG10 = {average_dcg10_score:.3f}")
+                                        print()
 
                                         if (
                                             best_map_result is None
